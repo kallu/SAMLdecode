@@ -1,0 +1,31 @@
+<html>
+	<head>
+		<script src="jquery-1.3.2.min.js"></script>
+		<script src="uneval.js"></script>
+		<script src="base64.js"></script>
+		<script src="rawinflate.js"></script>
+		<script src="rawdeflate.js"></script>
+		<script src="formatxml.js"></script>
+				
+		<script>			
+			function decodeSAML(encoded, decoded) {
+				document.getElementById(decoded).value =
+				formatXml(RawDeflate.inflate(Base64.fromBase64(unescape(document.getElementById(encoded).value.split("SAMLRequest=")[1].split("&")[0]))));
+			}
+		</script>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+		<title>SAML Request Decoder</title>
+	</head>
+	<body>
+
+	<h2>SAML Request Decoder</h2>
+
+	<form action="javascript:decodeSAML('encoded', 'cleartext');">
+	<p><b>1) Copy URL with encoded SAML request into text area below.</b></p>
+	<textarea id=encoded cols=80 rows=8>https://account.nokia.com/fed/idp/samlv20?SAMLRequest=7b0mL23...</textarea>
+	<p><b>2) Click <INPUT TYPE=SUBMIT VALUE="Decode"> and see clear text SAML request below.</b></p>
+	<textarea id=cleartext cols=80 rows=15 readonly>Clear text XML will be shown here!</textarea>
+	</form>					
+
+	</body>
+</html>
