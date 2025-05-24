@@ -2,8 +2,6 @@
 
 A simple static tool to decode SAML HTTP-Redirect (deflated and Base64 encoded) requests.
 
-## Screenshot
-
 ![SAML Request Decoder](screenshot.png)
 
 ## Usage
@@ -17,4 +15,4 @@ A simple static tool to decode SAML HTTP-Redirect (deflated and Base64 encoded) 
 
 - `index.html`: Main HTML page with embedded scripts and styles.
 - `jquery-3.7.1.min.js`: jQuery dependency.
-- `uneval.js`, `base64.js`, `rawinflate.js`, `rawdeflate.js`: JavaScript libraries for URL decoding, Base64 decoding, inflation/deflation.
+- `uneval.js`, `base64.js`, `rawinflate.js`, `rawdeflate.js`, `formatxml.js`: JavaScript libraries for URL decoding, base64 decoding, inflation/deflation etc.
