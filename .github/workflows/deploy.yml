@@ -39,10 +39,12 @@ jobs:
 
       - name: Check if static assets changed
         run: |
-          changed=$(git diff --name-only HEAD^ HEAD | grep -Ff bom.txt || true)
-          if [ -n "$changed" ]; then
+          bom_changed=$(git diff --name-only HEAD^ HEAD | grep -x 'bom.txt' || true)
+          assets_changed=$(git diff --name-only HEAD^ HEAD | grep -Ff bom.txt || true)
+          if [ -n "$bom_changed" ] || [ -n "$assets_changed" ]; then
             echo "ASSETS_CHANGED=true" >> $GITHUB_ENV
-            echo "Changed assets: $changed"
+            echo "BOM_CHANGED=$( [ -n "$bom_changed" ] && echo true || echo false )" >> $GITHUB_ENV
+            echo "Changed: bom.txt=${bom_changed:+yes} assets=${assets_changed:-none}"
           else
             echo "ASSETS_CHANGED=false" >> $GITHUB_ENV
             echo "No static assets changed, skipping upload and invalidation"
@@ -62,12 +64,24 @@ jobs:
           echo "BUCKET=$BUCKET" >> $GITHUB_ENV
           echo "DIST_ID=$DIST_ID" >> $GITHUB_ENV
 
-      - name: Upload files to S3
+      - name: Sync files to S3
         if: env.ASSETS_CHANGED == 'true'
         run: |
-          while IFS= read -r f; do
-            aws s3 cp $f s3://$BUCKET/$f --region us-east-1
-          done < bom.txt
+          if [ "$BOM_CHANGED" == "true" ]; then
+            # Delete files removed from bom.txt
+            git diff HEAD^ HEAD -- bom.txt | grep '^-[^-]' | sed 's/^-//' | grep -v '^\s*#' | while IFS= read -r f; do
+              [ -n "$f" ] && aws s3 rm s3://$BUCKET/$f --region us-east-1 && echo "Deleted: $f"
+            done
+            # Upload all current files
+            grep -v '^\s*#' bom.txt | while IFS= read -r f; do
+              aws s3 cp $f s3://$BUCKET/$f --region us-east-1
+            done
+          else
+            # Upload only changed assets
+            git diff --name-only HEAD^ HEAD | grep -Ff bom.txt | while IFS= read -r f; do
+              aws s3 cp $f s3://$BUCKET/$f --region us-east-1
+            done
+          fi
 
       - name: Invalidate CloudFront cache
         if: env.ASSETS_CHANGED == 'true'

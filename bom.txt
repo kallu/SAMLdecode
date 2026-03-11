@@ -1,3 +1,4 @@
+# Static assets deployed to S3
 index.html
 jquery-3.7.1.min.js
 base64.js
