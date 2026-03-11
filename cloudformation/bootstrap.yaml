@@ -122,18 +122,6 @@ Resources:
                 Action:
                   - route53:GetChange
                 Resource: 'arn:aws:route53:::change/*'
-              - Effect: Allow
-                Action:
-                  - iam:GetRole
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:GetRolePolicy
-                  - iam:PassRole
-                  - iam:UpdateAssumeRolePolicy
-                  - iam:TagRole
-                Resource: '*'
 
 Outputs:
   RoleArn:
