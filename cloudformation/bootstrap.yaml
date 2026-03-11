@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  One-time bootstrap for SAMLdecode CI/CD.
+  Creates the GitHub Actions OIDC provider and deploy role so that
+  subsequent deployments of the main stack can run via GitHub Actions.
+
+Parameters:
+  MainStackName:
+    Type: String
+    Default: saml-decode
+    Description: Name of the main infrastructure stack this role will deploy
+  GitHubRepo:
+    Type: String
+    Default: kallu/SAMLdecode
+    Description: GitHub repository in owner/repo format
+  GitHubBranch:
+    Type: String
+    Default: master
+    Description: Branch that is allowed to assume the deploy role
+  HostedZoneId:
+    Type: String
+    Default: Z33QVR4S16MSXY
+    Description: Route 53 hosted zone ID (needed for route53 policy scope)
+
+Resources:
+
+  # ── GitHub Actions OIDC Provider ───────────────────────────────────────────
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  # ── IAM Role for GitHub Actions ───────────────────────────────────────────
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${MainStackName}-github-actions'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOIDCProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubRepo}:ref:refs/heads/${GitHubBranch}'
+      Policies:
+        - PolicyName: !Sub '${MainStackName}-deploy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # CloudFormation stack management
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                Resource: !Sub 'arn:aws:cloudformation:*:${AWS::AccountId}:stack/${MainStackName}/*'
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStacks
+                Resource: '*'
+              # S3: upload files to the site bucket (ARN unknown at bootstrap time)
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: '*'
+              # CloudFront: cache invalidation (distribution ID unknown at bootstrap time)
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: '*'
+              # Permissions CloudFormation needs to manage the main stack resources
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:PutBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketPolicy
+                  - s3:GetBucketLocation
+                  - s3:GetBucketPublicAccessBlock
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cloudfront:GetDistribution
+                  - cloudfront:CreateDistribution
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:TagResource
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:DeleteOriginAccessControl
+                  - cloudfront:ListDistributions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - acm:RequestCertificate
+                  - acm:DescribeCertificate
+                  - acm:DeleteCertificate
+                  - acm:ListCertificates
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                  - route53:GetHostedZone
+                  - route53:ListResourceRecordSets
+                Resource: !Sub 'arn:aws:route53:::hostedzone/${HostedZoneId}'
+              - Effect: Allow
+                Action:
+                  - route53:GetChange
+                Resource: 'arn:aws:route53:::change/*'
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:PassRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:TagRole
+                Resource: '*'
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt GitHubActionsRole.Arn
+    Description: ARN of the GitHub Actions deploy role (use in configure-aws-credentials)

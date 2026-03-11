@@ -26,7 +26,7 @@ jobs:
           output=$(aws cloudformation deploy \
             --stack-name saml-decode \
             --template-file cloudformation/saml-decode.yaml \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --capabilities CAPABILITY_IAM \
             --region us-east-1 \
             --no-fail-on-empty-changeset 2>&1)
           exit_code=$?
