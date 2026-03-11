@@ -1,13 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: SAMLdecode static site - S3 + CloudFront + Route53 + ACM + GitHub Actions OIDC
 
+Parameters:
+  HostedZoneId:
+    Type: String
+    Default: Z33QVR4S16MSXY
+    Description: Route 53 hosted zone ID
+  DomainSuffix:
+    Type: String
+    Default: carriagereturn.nl
+    Description: Base domain (e.g. carriagereturn.nl)
+
 Resources:
 
   # ── S3 Bucket ──────────────────────────────────────────────────────────────
   Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: saml-decode-carriagereturn-nl
+      BucketName: !Sub '${AWS::StackName}-${DomainSuffix}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -19,7 +29,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: saml-decode-oac
+        Name: !Sub '${AWS::StackName}-oac'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -46,11 +56,11 @@ Resources:
   Certificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: saml-decode.carriagereturn.nl
+      DomainName: !Sub '${AWS::StackName}.${DomainSuffix}'
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: saml-decode.carriagereturn.nl
-          HostedZoneId: Z33QVR4S16MSXY
+        - DomainName: !Sub '${AWS::StackName}.${DomainSuffix}'
+          HostedZoneId: !Ref HostedZoneId
 
   # ── CloudFront Distribution ────────────────────────────────────────────────
   Distribution:
@@ -62,7 +72,7 @@ Resources:
         HttpVersion: http2
         PriceClass: PriceClass_100
         Aliases:
-          - saml-decode.carriagereturn.nl
+          - !Sub '${AWS::StackName}.${DomainSuffix}'
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt Bucket.RegionalDomainName
@@ -83,14 +93,14 @@ Resources:
           AcmCertificateArn: !Ref Certificate
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
-        Comment: saml-decode.carriagereturn.nl
+        Comment: !Sub '${AWS::StackName}.${DomainSuffix}'
 
   # ── Route 53 Alias Record ──────────────────────────────────────────────────
   DnsRecord:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneId: Z33QVR4S16MSXY
-      Name: saml-decode.carriagereturn.nl
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub '${AWS::StackName}.${DomainSuffix}'
       Type: A
       AliasTarget:
         DNSName: !GetAtt Distribution.DomainName
@@ -112,7 +122,7 @@ Resources:
   GitHubActionsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: saml-decode-github-actions
+      RoleName: !Sub '${AWS::StackName}-github-actions'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -126,7 +136,7 @@ Resources:
               StringLike:
                 token.actions.githubusercontent.com:sub: repo:kallu/SAMLdecode:ref:refs/heads/master
       Policies:
-        - PolicyName: saml-decode-deploy
+        - PolicyName: !Sub '${AWS::StackName}-deploy'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -150,7 +160,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - cloudformation:*
-                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/saml-decode/*'
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*'
               # CloudFormation needs to describe stacks for outputs
               - Effect: Allow
                 Action:
@@ -194,7 +204,7 @@ Resources:
                   - route53:ChangeResourceRecordSets
                   - route53:GetHostedZone
                   - route53:ListResourceRecordSets
-                Resource: 'arn:aws:route53:::hostedzone/Z33QVR4S16MSXY'
+                Resource: !Sub 'arn:aws:route53:::hostedzone/${HostedZoneId}'
               - Effect: Allow
                 Action:
                   - route53:GetChange
@@ -230,5 +240,5 @@ Outputs:
     Description: Raw CloudFront domain (for debugging)
 
   SiteURL:
-    Value: https://saml-decode.carriagereturn.nl
+    Value: !Sub 'https://${AWS::StackName}.${DomainSuffix}'
     Description: Live site URL
