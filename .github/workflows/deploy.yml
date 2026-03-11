@@ -35,16 +35,25 @@ jobs:
             echo "$output" | grep -qE "OBSOLETE|No changes to deploy" && exit 0 || exit $exit_code
           fi
 
-      - name: Upload files to S3
+      - name: Get stack outputs
         run: |
-          for f in index.html jquery-3.7.1.min.js base64.js rawinflate.js rawdeflate.js uneval.js formatxml.js; do
-            aws s3 cp $f s3://saml-decode-carriagereturn-nl/$f --region us-east-1
-          done
-
-      - name: Invalidate CloudFront cache
-        run: |
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name saml-decode --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" \
+            --output text)
           DIST_ID=$(aws cloudformation describe-stacks \
             --stack-name saml-decode --region us-east-1 \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
             --output text)
+          echo "BUCKET=$BUCKET" >> $GITHUB_ENV
+          echo "DIST_ID=$DIST_ID" >> $GITHUB_ENV
+
+      - name: Upload files to S3
+        run: |
+          for f in index.html jquery-3.7.1.min.js base64.js rawinflate.js rawdeflate.js uneval.js formatxml.js; do
+            aws s3 cp $f s3://$BUCKET/$f --region us-east-1
+          done
+
+      - name: Invalidate CloudFront cache
+        run: |
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
