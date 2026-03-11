@@ -35,7 +35,19 @@ jobs:
             echo "$output" | grep -qE "OBSOLETE|No changes to deploy" && exit 0 || exit $exit_code
           fi
 
+      - name: Check if static assets changed
+        run: |
+          changed=$(git diff --name-only HEAD^ HEAD | grep -Ff bom.txt || true)
+          if [ -n "$changed" ]; then
+            echo "ASSETS_CHANGED=true" >> $GITHUB_ENV
+            echo "Changed assets: $changed"
+          else
+            echo "ASSETS_CHANGED=false" >> $GITHUB_ENV
+            echo "No static assets changed, skipping upload and invalidation"
+          fi
+
       - name: Get stack outputs
+        if: env.ASSETS_CHANGED == 'true'
         run: |
           BUCKET=$(aws cloudformation describe-stacks \
             --stack-name saml-decode --region us-east-1 \
@@ -49,11 +61,13 @@ jobs:
           echo "DIST_ID=$DIST_ID" >> $GITHUB_ENV
 
       - name: Upload files to S3
+        if: env.ASSETS_CHANGED == 'true'
         run: |
-          for f in index.html jquery-3.7.1.min.js base64.js rawinflate.js rawdeflate.js uneval.js formatxml.js; do
+          while IFS= read -r f; do
             aws s3 cp $f s3://$BUCKET/$f --region us-east-1
-          done
+          done < bom.txt
 
       - name: Invalidate CloudFront cache
+        if: env.ASSETS_CHANGED == 'true'
         run: |
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
