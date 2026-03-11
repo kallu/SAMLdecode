@@ -22,12 +22,18 @@ jobs:
 
       - name: Deploy CloudFormation stack
         run: |
-          aws cloudformation deploy \
+          set +e
+          output=$(aws cloudformation deploy \
             --stack-name saml-decode \
             --template-file cloudformation/saml-decode.yaml \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --region us-east-1 \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset 2>&1)
+          exit_code=$?
+          echo "$output"
+          if [ $exit_code -ne 0 ]; then
+            echo "$output" | grep -qE "OBSOLETE|No changes to deploy" && exit 0 || exit $exit_code
+          fi
 
       - name: Upload files to S3
         run: |
